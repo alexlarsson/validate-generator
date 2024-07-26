@@ -202,10 +202,12 @@ gboolean
 validate_data (const char *rel_path, int type, guchar *content, gsize content_len, char *sig,
                gsize sig_size, GList *pub_keys, GError **error)
 {
+  g_debug("Validating signature of: %s", rel_path);
   if (sig_size < VALIDATOR_SIGNATURE_MAGIC_LEN
       || memcmp (sig, VALIDATOR_SIGNATURE_MAGIC, VALIDATOR_SIGNATURE_MAGIC_LEN) != 0)
     {
       g_set_error (error, G_FILE_ERROR, G_FILE_ERROR_INVAL, "Invalid signature");
+      g_debug("   Invalid signature size or value");
       return FALSE;
     }
   /* Skip past header */
@@ -216,7 +218,10 @@ validate_data (const char *rel_path, int type, guchar *content, gsize content_le
   g_autofree guchar *to_sign
       = make_sign_blob (rel_path, type, content, content_len, &to_sign_len, error);
   if (to_sign == NULL)
-    return FALSE;
+    {
+      g_debug("   Nothing to sign");
+      return FALSE;
+    }
 
   gboolean valid = FALSE;
   for (GList *l = pub_keys; l != NULL; l = l->next)
@@ -232,6 +237,7 @@ validate_data (const char *rel_path, int type, guchar *content, gsize content_le
 
       int res = EVP_DigestVerify (ctx, (unsigned char *)sig, sig_size, (unsigned char *)to_sign,
                                   to_sign_len);
+      g_debug("   Digest validation return code: %d", res);
       if (res == 1)
         {
           valid = TRUE;
