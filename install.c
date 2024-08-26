@@ -36,6 +36,7 @@ typedef struct
 static gboolean
 replace_file (const char *destination_file, int content_fd, GError **error)
 {
+  g_debug ("   Replacing file: %s", destination_file);
   g_autofree gchar *destination_file_tmp = g_strdup_printf ("%s.XXXXXX", destination_file);
 
   errno = 0;
@@ -74,6 +75,7 @@ install (InstallOptions *opt, const char *path, const char *relative_to,
 {
   struct stat st;
   gboolean success = TRUE;
+  g_debug ("Installing %s", path);
 
   int res = lstat (path, &st);
   if (res < 0)
@@ -218,30 +220,54 @@ install (InstallOptions *opt, const char *path, const char *relative_to,
 static gboolean
 install_for_config (InstallOptions *opt, const char **sources, const char *destination)
 {
+  g_debug ("Entering install_for_config");
   gboolean res = TRUE;
   for (gsize i = 0; sources[i] != NULL; i++)
     {
       g_autofree char *path = g_canonicalize_filename (sources[i], NULL);
+      g_debug ("   Working on: %s", path);
 
       if (g_file_test (path, G_FILE_TEST_IS_DIR))
         {
+          g_debug ("   %s is a directory", path);
           if (!opt->recursive)
             {
+              g_debug ("   No recursion set");
               g_printerr ("error: '%s' is a directory and not in recursive mode\n", path);
               return EXIT_FAILURE;
             }
 
+          g_debug ("Installing from %s to %s", path, destination);
           if (!install (opt, path, opt->path_relative ? opt->path_relative : path, destination,
                         TRUE))
             res = FALSE;
         }
       else if (g_file_test (path, G_FILE_TEST_IS_REGULAR))
         {
+          g_debug ("   %s is a file", path);
           g_autofree char *dirname = g_path_get_dirname (path);
 
           /* TODO: Handle opt->path_relative here?? */
           if (!install (opt, path, dirname, destination, TRUE))
             res = FALSE;
+        }
+      else
+        {
+          g_debug ("   %s is no supported", path);
+          g_autoptr (GError) error = NULL;
+          g_autoptr (GDir) dir = g_dir_open (path, 0, &error);
+          if (dir == NULL)
+            {
+
+              if (g_error_matches (error, G_FILE_ERROR, G_FILE_ERROR_NOENT))
+                {
+                  g_debug ("%s not found - ignoring", path);
+                }
+
+              g_printerr ("Can't enumerate config dir %s: %s", path, error->message);
+              res = FALSE;
+              continue;
+            }
         }
     }
 
@@ -273,6 +299,7 @@ static gboolean
 get_install_options_from_file (InstallOptions *opt, const char *config_path, char **destination_out,
                                char ***sources_out)
 {
+  g_debug ("Entering get_install_options_from_file");
   memset (opt, 0, sizeof (InstallOptions));
 
   g_autoptr (GKeyFile) config = g_key_file_new ();
@@ -369,6 +396,7 @@ int
 cmd_install (int argc, char *argv[])
 {
   gboolean res = TRUE;
+  g_debug ("Entering cmd_install");
 
   if (argc > 1)
     {
@@ -418,13 +446,19 @@ cmd_install (int argc, char *argv[])
       g_autoptr (GDir) dir = g_dir_open (config_dir, 0, &error);
       if (dir == NULL)
         {
+
           if (g_error_matches (error, G_FILE_ERROR, G_FILE_ERROR_NOENT))
-            continue;
+            {
+              g_debug ("%s not found - ignoring", config_dir);
+              continue;
+            }
 
           g_printerr ("Can't enumerate config dir %s: %s", config_dir, error->message);
           res = FALSE;
           continue;
         }
+
+      g_debug ("Entering %s to load the config files", config_dir);
 
       const char *filename;
       while ((filename = g_dir_read_name (dir)) != NULL)
@@ -438,6 +472,7 @@ cmd_install (int argc, char *argv[])
           InstallOptions opt;
           if (!get_install_options_from_file (&opt, config_file, &destination, &sources))
             {
+              g_debug ("Could not find install options from file %s", config_file);
               res = FALSE;
               continue;
             }
@@ -447,7 +482,11 @@ cmd_install (int argc, char *argv[])
 
           free_install_options (&opt);
         }
+
+      g_debug ("over & out");
     }
+
+    g_debug ("over & out2");
 
   return res ? 0 : 1;
 }

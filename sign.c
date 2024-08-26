@@ -26,6 +26,7 @@ sign (const char *path, const char *relative_to)
 {
   struct stat st;
   gboolean success = TRUE;
+  g_debug ("Signing %s", path);
 
   int res = lstat (path, &st);
   if (res < 0)
@@ -116,6 +117,7 @@ int
 cmd_sign (int argc, char *argv[])
 {
   g_autoptr (GError) error = NULL;
+  g_debug ("Entering cmd_sign");
 
   if (argc == 1)
     help_error ("No input files given");
@@ -124,6 +126,7 @@ cmd_sign (int argc, char *argv[])
   for (gsize i = 1; i < argc; i++)
     {
       g_autofree char *path = g_canonicalize_filename (argv[i], NULL);
+      g_debug ("Checking %s", path);
 
       if (g_file_test (path, G_FILE_TEST_IS_DIR))
         {
